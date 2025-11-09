@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Document AI Assistant - Dynamic Sections</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Tailwind Configuration for project-specific colors and fonts
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1e3a8a', // Dark Blue - Professional
+                        'primary-dark': '#1e40af',
+                        'secondary': '#ca8a04', // Gold/Amber - Accent
+                        'tertiary': '#059669', // Emerald Green
+                        'active-highlight': '#34d399', // Emerald 300 for dynamic Q&A highlight
+                        'background': '#f8fafc', // Light Off-White
+                        'card': '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+        .loading-animation {
+            border: 4px solid rgba(255, 255, 255, 0.4);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .gradient-background {
+            background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+        }
+
+        /* --- DYNAMIC Q&A HIGHLIGHT CSS --- */
+        .active-highlight {
+            background-color: #34d399; /* Tailwind emerald-300 */
+            font-weight: 700;
+            color: #064e3b; /* Tailwind emerald-900 */
+            border-radius: 3px;
+            padding: 1px 3px;
+            transition: background-color 0.2s;
+        }
+    </style>
+</head>
+<body class="gradient-background min-h-screen p-4 md:p-12 font-sans">
+    <div id="app" class="max-w-6xl mx-auto space-y-10">
+        <header class="text-center pb-4 border-b border-gray-200">
+            <h1 class="text-5xl font-extrabold text-gray-900 leading-tight">
+                Academic AI Assistant
+            </h1>
+            <p class="mt-2 text-xl text-gray-600">Advanced Document Summarization and Q&A powered by AI.</p>
+        </header>
+
+        <section class="bg-card shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100">
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Document Input & Analysis
+            </h2>
+
+            <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6">
+                <label for="fileInput" class="cursor-pointer px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary-dark transition duration-200 shadow-md">
+                    Select Document File (.pdf, .docx, .txt, etc.)
+                    <input type="file" id="fileInput" class="hidden" accept=".txt, .pdf, .docx, .ppt, .pptx" onchange="handleFileUpload(event)">
+                </label>
+                <span id="fileNameDisplay" class="text-lg text-gray-500 italic flex-grow" aria-live="polite">No document selected. Please select a file above.</span>
+            </div>
+
+            <div class="pt-4 space-y-4">
+                
+                <div class="flex flex-col md:flex-row gap-4">
+                    
+                    <button onclick="processDocument()" id="analyzeBtn" class="flex-1 px-8 py-4 bg-primary text-white font-semibold rounded-xl text-lg hover:bg-primary-dark transition duration-200 shadow-xl shadow-blue-200/50 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled aria-label="Analyze document and get summaries">
+                        <span id="analyzeText">Get Summaries</span>
+                        <div id="analyzeSpinner" class="loading-animation ml-3 hidden"></div>
+                    </button>
+                    
+                    <button onclick="downloadSummariesAsPDF()" id="downloadBtn" class="w-full md:w-auto px-8 py-4 bg-secondary text-white font-semibold rounded-xl text-lg hover:bg-amber-600 transition duration-200 shadow-xl shadow-amber-200/50 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled aria-label="Download generated notes as a PDF">
+                        <span id="downloadText">Download Notes (PDF)</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-2">
+                            <path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.416-3.416a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.416 3.416V3a.75.75 0 0 1 .75-.75Zm-5.25 17.25A.75.75 0 0 1 7.5 19h9a.75.75 0 0 1 0 1.5h-9a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+        
+        <section id="preprocessingSection" class="bg-card shadow-xl rounded-xl p-6 space-y-4 border border-gray-100 hidden">
+            <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.5.305 1.106.305 1.606 0z" />
+                </svg>
+                Preprocessing Log
+            </h2>
+            <ul id="preprocessingSteps" class="list-disc list-inside space-y-1 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
+                </ul>
+        </section>
+
+
+        <section class="bg-card shadow-2xl rounded-xl p-8 space-y-8 border border-gray-100" aria-label="Generated Summaries">
+            <h2 class="text-2xl font-bold text-gray-800">Summarization Outputs</h2>
+            <div class="grid lg:grid-cols-3 md:grid-cols-2 gap-6">
+
+                <div class="bg-blue-50 p-5 rounded-xl border-t-4 border-primary shadow-lg min-h-[150px]" id="shortSummaryContainer">
+                    <h3 class="font-extrabold text-xl text-primary mb-2">Short Summary</h3>
+                    <p id="shortSummaryOutput" class="text-gray-700 text-sm leading-relaxed" aria-atomic="true" aria-relevant="text">A concise overview focusing on the key takeaway.</p>
+                </div>
+
+                <div class="bg-emerald-50 p-5 rounded-xl border-t-4 border-tertiary shadow-lg min-h-[150px]" id="mediumSummaryContainer">
+                    <h3 class="font-extrabold text-xl text-tertiary mb-2">Medium Summary</h3>
+                    <p id="mediumSummaryOutput" class="text-gray-700 text-sm leading-relaxed" aria-atomic="true" aria-relevant="text">A balanced view covering the methodology, results, and conclusion.</p>
+                </div>
+
+                <div class="bg-indigo-50 p-5 rounded-xl border-t-4 border-primary-dark shadow-lg min-h-[150px]" id="longSummaryContainer">
+                    <h3 class="font-extrabold text-xl text-primary-dark mb-2 flex items-center">
+                        Long Summary
+                    
+                    </h3>
+                    <p id="longSummaryOutput" class="text-gray-700 text-sm leading-relaxed" aria-atomic="true" aria-relevant="text">A detailed summary providing comprehensive coverage of all major document sections. (Highlights appear here after Q&A)</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-card shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100" aria-label="Keyword Tags">
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                </svg>
+                Click & Find
+            </h2>
+            <div id="keywordOutput" class="mt-4 p-5 rounded-xl border border-gray-300 min-h-[50px] leading-loose flex flex-wrap gap-2 shadow-inner bg-gray-50" role="status">
+                Keywords related to the document will appear here as clickable tags after analysis.
+            </div>
+        </section>
+
+        <section class="bg-card shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100" aria-label="Question and Answer">
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9.228a2 2 0 012.828 0l.135.135a2 2 0 002.828 0l.135-.135a2 2 0 012.828 0l1.107 1.107a2 2 0 010 2.828l-.135.135a2 2 0 000 2.828l.135.135a2 2 0 010 2.828l-1.107 1.107" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 13.5l-3.5-3.5m0 0l-3.5 3.5" />
+                </svg>
+                Find your Answers
+            </h2>
+            <input type="text" id="questionInput" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary transition duration-150 text-gray-700 placeholder-gray-400 shadow-inner" placeholder="Ask a specific question">
+
+            <button onclick="answerQuestion()" id="qaBtn" class="w-full lg:w-96 px-8 py-4 bg-secondary text-white font-semibold rounded-xl text-lg hover:bg-amber-600 transition duration-200 shadow-xl shadow-amber-200/50 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled aria-label="Get contextual answer and highlight source in long summary">
+                <span id="qaText">Get Answer</span>
+                <div id="qaSpinner" class="loading-animation ml-3 hidden"></div>
+            </button>
+
+            <div id="qaOutput" class="mt-4 bg-yellow-50 p-5 rounded-xl border border-yellow-200 text-gray-800 min-h-[80px] leading-relaxed italic shadow-inner" aria-live="polite">
+                Your answer will appear here. The corresponding section of the Long Summary will be highlighted.
+            </div>
+        </section>
+        
+        <section class="bg-card shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100" aria-label="Frequently Asked Questions and Ethics">
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9.228a2 2 0 012.828 0l.135.135a2 2 0 002.828 0l.135-.135a2 2 0 012.828 0l1.107 1.107a2 2 0 010 2.828l-.135.135a2 2 0 000 2.828l.135.135a2 2 0 010 2.828l-1.107 1.107" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01" />
+                </svg>
+                FAQ & Transparency Guide
+            </h2>
+
+            <div class="space-y-4 text-gray-700">
+                <details class="border border-gray-200 rounded-lg p-3">
+                    <summary class="font-semibold text-primary cursor-pointer hover:text-primary-dark transition duration-150" role="button" aria-expanded="false">What can the AI assistant do and not do?</summary>
+                    <p class="pt-2 text-sm"><strong>Can Do:</strong> Generate concise summaries, extract keywords, and answer questions directly based on the provided text. <strong>Cannot Do:</strong> Access the internet (it is contained to your document), verify factual accuracy outside of your document, or perfectly parse every complex table/figure.</p>
+                </details>
+                <details class="border border-gray-200 rounded-lg p-3">
+                    <summary class="font-semibold text-primary cursor-pointer hover:text-primary-dark transition duration-150" role="button" aria-expanded="false">What about data privacy and ethics?</summary>
+                    <p class="pt-2 text-sm">Your documents are processed securely and are not stored or used to train the underlying AI models. We recommend **Anonymizing** sensitive data before upload (names, internal codes, etc.) as the AI's goal is analysis, not data protection.</p>
+                </details>
+            </div>
+        </section>
+        <footer class="text-center text-sm text-gray-500 pt-8 border-t border-gray-200">
+            <p>&copy; 2025 Academic AI Assistant. Powered by the Gemini API.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- Global State & API Configuration ---
+        const apiKey = "AIzaSyDY0N9ZFxdweoBOzL6LA4KFITliJ9rdxfM"; 
+        const model = 'gemini-2.5-flash-preview-09-2025';
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        let uploadedFileBase64 = null;
+        let uploadedFileMimeType = null;
+        let dynamicKeywords = []; 
+        let rawLongSummaryText = ""; 
+        let preprocessingLog = [];
+        
+        // --- Utility Functions ---
+        function updateButtonStates() {
+            const isFileReady = uploadedFileBase64 !== null;
+            document.getElementById('analyzeBtn').disabled = !isFileReady;
+            
+            const summariesGenerated = rawLongSummaryText.length > 50;
+            document.getElementById('qaBtn').disabled = !summariesGenerated;
+            document.getElementById('downloadBtn').disabled = !summariesGenerated;
+        }
+
+        // Utility to escape strings for use in RegExp constructor
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        function displayPreprocessingLog() {
+            const section = document.getElementById('preprocessingSection');
+            const stepsList = document.getElementById('preprocessingSteps');
+            
+            if (!section) return; 
+
+            section.style.display = 'block';
+            stepsList.innerHTML = '';
+            
+            preprocessingLog.forEach(step => {
+                const li = document.createElement('li');
+                li.textContent = step;
+                li.className = 'text-gray-700';
+                stepsList.appendChild(li);
+            });
+            
+            // Scroll to show the preprocessing section
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Utility function for exponential backoff retry logic
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok && response.status === 429) {
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    if (!response.ok) {
+                        let errorDetail = response.statusText;
+                        try {
+                            const errorBody = await response.json();
+                            errorDetail = errorBody.error?.message || response.statusText;
+                        } catch {}
+                        throw new Error(`HTTP error! status: ${response.status} - ${errorDetail}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 500;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // --- Custom Highlighting Logic ---
+
+        function applyDynamicHighlighting(clickedKeyword, answerText) {
+            const longSummaryEl = document.getElementById('longSummaryOutput');
+
+            let currentText = rawLongSummaryText;
+
+            const answerPhrases = answerText.split(/[\.!\?]/).filter(p => p.trim().length > 10).map(p => p.trim());
+            let highlightPhrase = clickedKeyword;
+
+            if (answerPhrases.length > 0) {
+                 highlightPhrase = answerPhrases[0];
+            } else if (answerText.length > 15) {
+                 highlightPhrase = answerText.substring(0, 15);
+            }
+
+            const dynamicTermsToHighlight = [highlightPhrase, clickedKeyword].filter(t => t.length > 0);
+
+            let finalHighlightedHTML = currentText;
+
+            dynamicTermsToHighlight.sort((a, b) => b.length - a.length);
+
+            dynamicTermsToHighlight.forEach(term => {
+                const termRegex = new RegExp(`(${escapeRegExp(term)})`, 'gi');
+
+                finalHighlightedHTML = finalHighlightedHTML.replace(termRegex, (match) => {
+                    // Prevent applying the highlight multiple times if terms overlap
+                    if (!match.includes('active-highlight')) {
+                        return `<span class="active-highlight">${match}</span>`;
+                    }
+                    return match;
+                });
+            });
+
+
+            longSummaryEl.innerHTML = finalHighlightedHTML;
+
+            // Scroll to the summary for visibility
+            document.getElementById('longSummaryContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+
+        // --- Document Processing Flow ---
+
+        function validateInput() {
+            if (uploadedFileBase64) {
+                return true;
+            } else {
+                console.error("Input Error: Please upload a document file to proceed with analysis.");
+                document.getElementById('fileNameDisplay').textContent = "ERROR: Please select a document file to proceed.";
+                return false;
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            const display = document.getElementById('fileNameDisplay');
+
+            uploadedFileBase64 = null;
+            uploadedFileMimeType = null;
+            rawLongSummaryText = ""; // Reset raw summary on new file upload
+            
+            // Reset outputs
+            document.getElementById('longSummaryOutput').textContent = "A detailed summary providing comprehensive coverage of all major document sections. (Highlights appear here after Q&A)";
+            document.getElementById('shortSummaryOutput').textContent = "A concise overview focusing on the key takeaway.";
+            document.getElementById('mediumSummaryOutput').textContent = "A balanced view covering the methodology, results, and conclusion.";
+            document.getElementById('keywordOutput').textContent = "Keywords related to the document will appear here as clickable tags after analysis.";
+            document.getElementById('qaOutput').textContent = "Your answer will appear here. The corresponding section of the Long Summary will be highlighted.";
+            document.getElementById('questionInput').value = '';
+            document.getElementById('preprocessingSection').style.display = 'none';
+
+
+            updateButtonStates();
+
+            if (!file) {
+                display.textContent = 'No document selected. Please select a file.';
+                return;
+            }
+
+            display.textContent = `Selected: ${file.name} - Reading file...`;
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                const parts = dataUrl.split(',');
+
+                if (parts.length === 2) {
+                    uploadedFileMimeType = parts[0].match(/:(.*?);/)[1];
+                    uploadedFileBase64 = parts[1];
+
+                    let displayType = uploadedFileMimeType.includes('pdf') ? 'PDF Document' : 'Generic Document';
+                    display.textContent = `File loaded: ${file.name} (${displayType}, ready for analysis)`;
+                } else {
+                    console.error('Error reading file as data URL.');
+                    display.textContent = 'Error processing file. Please try another file.';
+                }
+                updateButtonStates();
+            };
+
+            reader.onerror = () => {
+                console.error('Error reading file.');
+                display.textContent = 'Error reading file.';
+                updateButtonStates();
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        async function processDocument() {
+            if (!validateInput()) return;
+
+            const btn = document.getElementById('analyzeBtn');
+            const spinner = document.getElementById('analyzeSpinner');
+            const textSpan = document.getElementById('analyzeText');
+            
+            // 1. Initial UI Setup & Loading Indicators
+            btn.disabled = true;
+            spinner.classList.remove('hidden');
+            textSpan.textContent = 'Analyzing Document...';
+
+            document.getElementById('shortSummaryOutput').innerHTML = '<div class="loading-animation w-6 h-6 border-l-primary mx-auto"></div> Generating short summary...';
+            document.getElementById('mediumSummaryOutput').innerHTML = '<div class="loading-animation w-6 h-6 border-l-primary mx-auto"></div> Generating medium summary...';
+            document.getElementById('longSummaryOutput').innerHTML = '<div class="loading-animation w-6 h-6 border-l-primary mx-auto"></div> Generating long summary...';
+            document.getElementById('keywordOutput').innerHTML = '<div class="loading-animation w-6 h-6 border-l-tertiary mx-auto"></div> Extracting key topics...';
+
+            rawLongSummaryText = "";
+            preprocessingLog = [
+                'Document preprocessing',
+                'Ignoring page numbers and headers',
+                'Skiping any references section',
+                'Focusing on main academic content',
+                `Processing ${uploadedFileMimeType} file format`
+            ];
+            displayPreprocessingLog();
+
+            try {
+               
+                await Promise.all([
+                    runSummaries(),
+                    runKeywords()  
+                ]);
+            } catch (error) {
+                console.error("Critical Error during unified document analysis:", error);
+                
+                const errorMsg = "Analysis failed. Please try a smaller document or check the console for details.";
+                document.getElementById('shortSummaryOutput').textContent = errorMsg;
+                document.getElementById('mediumSummaryOutput').textContent = errorMsg;
+                document.getElementById('longSummaryOutput').textContent = errorMsg;
+                document.getElementById('keywordOutput').textContent = errorMsg;
+            } finally {
+                document.getElementById('preprocessingSection').style.display = 'none';
+
+                updateButtonStates();
+                spinner.classList.add('hidden');
+                textSpan.textContent = 'Get Summaries';
+            }
+        }
+
+
+       async function runSummaries() {
+        
+        // Prompts are now fixed to the full document without section focus logic
+        const summariesToRun = [
+            { type: 'short', target: 'shortSummaryOutput',
+              prompt: 'concise, high-impact summary of the main finding and conclusion in exactly 3-5 sentences. Focus on key takeaways. Ignore references, page numbers, and headers.' },
+            { type: 'medium', target: 'mediumSummaryOutput',
+              prompt: 'balanced summary covering the research question, methodology overview, and primary results in exactly 6-8 sentences. Provide a balanced overview. Ignore references, page numbers, and headers.' },
+            { type: 'long', target: 'longSummaryOutput',
+              prompt: 'detailed summary covering the full introduction/context, methodology, key results, and detailed conclusion in exactly 9-12 sentences. Ignore references, page numbers, and headers.' }
+        ];
+
+        const systemPrompt = `You are a world-class academic analyst with advanced preprocessing capabilities. Your response MUST strictly adhere to the length and focus specified. The summary must be precise, professional, and use formal academic language. Do NOT add any introductory or concluding phrases outside of the summary itself.
+        
+        Preprocessing Instructions:
+        1. Ignore page numbers, headers, footers, and pagination artifacts.
+        2. Ignore the references/bibliography section.
+        3. Focus only on the main academic content (introduction, methodology, results, discussion, conclusion).`;
+
+        try {
+            const results = await Promise.all(
+                summariesToRun.map(s => {
+                    let contents = [
+                        { text: `Please provide a ${s.prompt} of the attached document. The document content is a ${uploadedFileMimeType} file.` },
+                        { inlineData: { mimeType: uploadedFileMimeType, data: uploadedFileBase64 } }
+                    ];
+                    const payload = {
+                        contents: [{ parts: contents }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                    };
+                    return fetchWithRetry(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).then(res => res.json())
+                      .then(result => result.candidates?.[0]?.content?.parts?.[0]?.text || "Summary failed to generate.");
+                })
+            );
+
+            summariesToRun.forEach((s, index) => {
+                const rawSummary = results[index];
+                const outputElement = document.getElementById(s.target);
+
+                if (s.type === 'long') {
+                    rawLongSummaryText = rawSummary;
+                    outputElement.textContent = rawSummary;
+                } else {
+                    outputElement.textContent = rawSummary;
+                }
+            });
+        } catch (error) {
+            console.error("Error during summarization:", error);
+            throw new Error("Summarization part failed.");
+        }
+    }
+
+        async function runKeywords() {
+            const outputDiv = document.getElementById('keywordOutput');
+            dynamicKeywords = [];
+
+            try {
+                const promptInstruction = 'Extract exactly 15 key topics or phrases from the document. The output MUST be a single, comma-separated list with no introductory or concluding sentences, only the 15 keywords.';
+                const systemPrompt = `You are an expert keyword and topic extractor. Your task is to identify and list the most important 15 key terms, concepts, and names from the provided academic document. Your response MUST be a single string of comma-separated values, containing exactly 15 items, and NOTHING else.`;
+
+                let contents = [];
+
+                contents.push(
+                    { text: `Please ${promptInstruction} of the attached document. The document content is a ${uploadedFileMimeType} file.` },
+                    { inlineData: { mimeType: uploadedFileMimeType, data: uploadedFileBase64 } }
+                );
+
+                const payload = {
+                    contents: [{ parts: contents }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                };
+
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const keywordsString = result.candidates?.[0]?.content?.parts?.[0]?.text || "Keyword extraction failed.";
+
+                if (keywordsString === "Keyword extraction failed.") {
+                    outputDiv.textContent = keywordsString;
+                } else {
+                    const keywords = keywordsString.split(',').map(k => k.trim()).filter(k => k.length > 0);
+                    dynamicKeywords = keywords;
+
+                    outputDiv.innerHTML = '';
+
+                    if (keywords.length > 0) {
+                        const questionInput = document.getElementById('questionInput');
+
+                        keywords.forEach(keyword => {
+                            const button = document.createElement('button');
+                            button.textContent = keyword;
+                            button.className = 'keyword-tag bg-tertiary text-white text-sm font-medium px-3 py-1 rounded-full hover:bg-emerald-700 transition duration-150 shadow-md cursor-pointer';
+
+                            // Set up the interactive click handler
+                            button.onclick = () => {
+                                questionInput.value = `Explain the concept of "${keyword}" in the context of the document.`;
+                                answerQuestion(keyword); // Trigger Q&A with the keyword
+                            };
+                            outputDiv.appendChild(button);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Error during keyword extraction:", error);
+                outputDiv.textContent = "Error extracting keywords. Analysis failed. Check console for details.";
+            }
+        }
+        
+        async function answerQuestion(keyword = null) {
+            const questionInput = document.getElementById('questionInput');
+            const question = keyword ? questionInput.value : questionInput.value.trim();
+            const qaBtn = document.getElementById('qaBtn');
+            const qaSpinner = document.getElementById('qaSpinner');
+            const qaText = document.getElementById('qaText');
+            const qaOutput = document.getElementById('qaOutput');
+
+            if (!question || !uploadedFileBase64 || !rawLongSummaryText) {
+                qaOutput.textContent = "Please upload a document, analyze it, and enter a question or click a keyword to ask.";
+                return;
+            }
+
+            // UI Setup
+            qaBtn.disabled = true;
+            qaSpinner.classList.remove('hidden');
+            qaText.textContent = 'Finding Answer...';
+            qaOutput.textContent = 'Searching document for contextual answer...';
+
+            try {
+                const systemPrompt = `You are a highly contextual Q&A assistant for academic documents. Answer the user's question based *ONLY* on the provided document text. If the answer cannot be found, state clearly that the information is not present. Do not use external knowledge. Provide a direct, factual answer, and include the key phrase that supports the answer.`;
+
+                let contents = [
+                    { text: `QUESTION: ${question}. Answer the question based ONLY on the attached document content.` },
+                    { inlineData: { mimeType: uploadedFileMimeType, data: uploadedFileBase64 } }
+                ];
+
+                const payload = {
+                    contents: [{ parts: contents }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                };
+
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const answerText = result.candidates?.[0]?.content?.parts?.[0]?.text || "Answer could not be generated.";
+
+                qaOutput.textContent = answerText;
+                
+                // Highlight the source in the long summary
+                // We use the keyword passed directly, or fall back to the question if manually typed
+                applyDynamicHighlighting(keyword || question.substring(0, 15).trim(), answerText);
+
+            } catch (error) {
+                qaOutput.textContent = `Failed to get an answer: ${error.message}`;
+                console.error("Q&A API Call Error:", error);
+            } finally {
+                // UI Cleanup
+                updateButtonStates(); // Re-enable if summaries are ready
+                qaSpinner.classList.add('hidden');
+                qaText.textContent = 'Get Answer';
+            }
+        }
+        
+        // --- PDF Generation ---
+
+        function downloadSummariesAsPDF() {
+            if (!rawLongSummaryText) {
+                alert("Please analyze a document first to generate summaries for download.");
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const shortSummary = document.getElementById('shortSummaryOutput').textContent;
+            const mediumSummary = document.getElementById('mediumSummaryOutput').textContent;
+            const longSummary = rawLongSummaryText;
+            const keywords = dynamicKeywords.join(', ');
+            const fileName = document.getElementById('fileInput').files[0]?.name || 'Document Analysis';
+
+            let y = 15;
+            
+            // Title
+            doc.setFontSize(22);
+            doc.text(`Analysis Report: ${fileName}`, 15, y);
+            y += 10;
+            
+            // Keywords
+            doc.setFontSize(12);
+            doc.text(`Keywords: ${keywords}`, 15, y);
+            y += 10;
+
+            // Short Summary
+            doc.setFontSize(16);
+            doc.text("1. Short Summary (Concise Takeaway)", 15, y);
+            doc.setFontSize(11);
+            y += 7;
+            const shortText = doc.splitTextToSize(shortSummary, 180);
+            doc.text(shortText, 15, y);
+            y += shortText.length * 5; 
+            
+            // Medium Summary
+            y += 5;
+            doc.setFontSize(16);
+            doc.text("2. Medium Summary (Methodology & Results)", 15, y);
+            doc.setFontSize(11);
+            y += 7;
+            const mediumText = doc.splitTextToSize(mediumSummary, 180);
+            doc.text(mediumText, 15, y);
+            y += mediumText.length * 5; 
+
+            // Long Summary
+            y += 5;
+            doc.setFontSize(16);
+            doc.text("3. Long Summary (Detailed Context)", 15, y);
+            doc.setFontSize(11);
+            y += 7;
+            const longText = doc.splitTextToSize(longSummary, 180);
+            
+            // Add new page if content overflows
+            if (y + longText.length * 5 > 280) {
+                 doc.addPage();
+                 y = 15;
+            }
+
+            doc.text(longText, 15, y);
+            doc.save(`${fileName}_AI_Summary.pdf`);
+        }
+        
+        // Initial state update
+        document.addEventListener('DOMContentLoaded', updateButtonStates);
+
+    </script>
+</body>
+</html>
